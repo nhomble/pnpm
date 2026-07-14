@@ -9,6 +9,7 @@ type PnpmKey = keyof typeof pnpmTypes
  */
 export const pnpmConfigFileKeys = [
   'bail',
+  'branch-lockfile-dir',
   'ci',
   'color',
   'cache-dir',

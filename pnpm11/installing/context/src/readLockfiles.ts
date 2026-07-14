@@ -42,6 +42,7 @@ export async function readLockfiles (
     registry: string
     useLockfile: boolean
     useGitBranchLockfile?: boolean
+    branchLockfileDir?: string
     mergeGitBranchLockfiles?: boolean
     internalPnpmDir: string
   }
@@ -63,6 +64,7 @@ export async function readLockfiles (
     ignoreIncompatible: opts.force || (opts.ci === true && !opts.frozenLockfile),
     wantedVersions: [LOCKFILE_VERSION],
     useGitBranchLockfile: opts.useGitBranchLockfile,
+    branchLockfileDir: opts.branchLockfileDir,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
   const fileReads = [] as Array<Promise<LockfileObject | undefined | null>>

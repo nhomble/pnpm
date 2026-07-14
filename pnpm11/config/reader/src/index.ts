@@ -699,6 +699,10 @@ export async function getConfig (opts: {
     pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
   }
 
+  if (pnpmConfig.branchLockfileDir) {
+    pnpmConfig.branchLockfileDir = path.resolve(pnpmConfig.lockfileDir ?? pnpmConfig.dir, pnpmConfig.branchLockfileDir)
+  }
+
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {

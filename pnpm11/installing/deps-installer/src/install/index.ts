@@ -430,10 +430,14 @@ export async function mutateModules (
   if (!willDelegateToPacquet && !opts.trustLockfile) {
     const cacheActive = opts.cacheDir != null && opts.resolutionVerifiers.length > 0
     const wantedLockfilePath = cacheActive
-      ? path.resolve(ctx.lockfileDir, await getWantedLockfileName({
-        useGitBranchLockfile: opts.useGitBranchLockfile,
-        mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-      }))
+      ? await (async () => {
+        const wantedLockfileName = await getWantedLockfileName({
+          useGitBranchLockfile: opts.useGitBranchLockfile,
+          mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+        })
+        const wantedLockfileDir = wantedLockfileName !== WANTED_LOCKFILE && opts.branchLockfileDir ? opts.branchLockfileDir : ctx.lockfileDir
+        return path.resolve(wantedLockfileDir, wantedLockfileName)
+      })()
       : undefined
     verifyLockfilePromise = verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
       cacheDir: opts.cacheDir,
@@ -505,7 +509,7 @@ export async function mutateModules (
   }
 
   if (opts.mergeGitBranchLockfiles) {
-    await cleanGitBranchLockfiles(ctx.lockfileDir)
+    await cleanGitBranchLockfiles(opts.branchLockfileDir ?? ctx.lockfileDir)
   }
 
   let ignoredBuilds = result.ignoredBuilds
@@ -1153,6 +1157,7 @@ Note that in CI environments, this setting is enabled by default.`,
           wantedLockfile: ctx.wantedLockfile,
           wantedLockfileDir: ctx.lockfileDir,
           useGitBranchLockfile: opts.useGitBranchLockfile,
+          branchLockfileDir: opts.branchLockfileDir,
           mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
         })
       }
@@ -1708,6 +1713,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   const depsStateCache: DepsStateCache = {}
   const lockfileOpts = {
     useGitBranchLockfile: opts.useGitBranchLockfile,
+    branchLockfileDir: opts.branchLockfileDir,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
   let stats: InstallationResultStats | undefined
@@ -2273,6 +2279,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           ignoreIncompatible: opts.force || opts.ci === true,
           mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
           useGitBranchLockfile: opts.useGitBranchLockfile,
+          branchLockfileDir: opts.branchLockfileDir,
           wantedVersions: [LOCKFILE_VERSION],
         })
         if (wantedLockfile == null) {
@@ -2701,6 +2708,7 @@ async function installViaPnprServer (
       cacheDir: opts.cacheDir,
       resolutionVerifiers: opts.resolutionVerifiers,
       useGitBranchLockfile: opts.useGitBranchLockfile,
+      branchLockfileDir: opts.branchLockfileDir,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
     })
 

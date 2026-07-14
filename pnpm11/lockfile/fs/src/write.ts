@@ -40,10 +40,16 @@ export async function writeWantedLockfile (
     /** Pre-resolved filename; skips the `getWantedLockfileName` (and
      *  its `getCurrentBranch`) call when supplied. */
     lockfileName?: string
+    /** Directory to write the git-branch-named lockfile into, if it differs from `pkgPath`. */
+    branchLockfileDir?: string
   }
 ): Promise<LockfileObject> {
   const wantedLockfileName: string = opts?.lockfileName ?? await getWantedLockfileName(opts)
-  return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile)
+  const lockfileDir = wantedLockfileName !== WANTED_LOCKFILE && opts?.branchLockfileDir ? opts.branchLockfileDir : pkgPath
+  if (lockfileDir !== pkgPath) {
+    await fs.mkdir(lockfileDir, { recursive: true })
+  }
+  return writeLockfile(wantedLockfileName, lockfileDir, wantedLockfile)
 }
 
 export async function writeCurrentLockfile (
@@ -140,10 +146,16 @@ export async function writeLockfiles (
     mergeGitBranchLockfiles?: boolean
     /** See {@link writeWantedLockfile}'s `lockfileName` option. */
     wantedLockfileName?: string
+    /** See {@link writeWantedLockfile}'s `branchLockfileDir` option. */
+    branchLockfileDir?: string
   }
 ): Promise<WriteLockfilesResult> {
   const wantedLockfileName: string = opts.wantedLockfileName ?? await getWantedLockfileName(opts)
-  const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
+  const wantedLockfileDir = wantedLockfileName !== WANTED_LOCKFILE && opts.branchLockfileDir ? opts.branchLockfileDir : opts.wantedLockfileDir
+  if (wantedLockfileDir !== opts.wantedLockfileDir) {
+    await fs.mkdir(wantedLockfileDir, { recursive: true })
+  }
+  const wantedLockfilePath = path.join(wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
   const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile)
@@ -184,8 +196,8 @@ export async function writeLockfiles (
   }
 
   logger.debug({
-    message: `\`${WANTED_LOCKFILE}\` differs from \`${path.relative(opts.wantedLockfileDir, currentLockfilePath)}\``,
-    prefix: opts.wantedLockfileDir,
+    message: `\`${WANTED_LOCKFILE}\` differs from \`${path.relative(wantedLockfileDir, currentLockfilePath)}\``,
+    prefix: wantedLockfileDir,
   })
 
   const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile)

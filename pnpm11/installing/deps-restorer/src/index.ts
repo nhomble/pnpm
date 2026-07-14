@@ -184,6 +184,7 @@ export interface HeadlessOptions {
   nodePackageMapType?: 'standard' | 'loose'
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
   useGitBranchLockfile?: boolean
+  branchLockfileDir?: string
   useLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
   hoistWorkspacePackages?: boolean
@@ -218,6 +219,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const wantedLockfile = opts.wantedLockfile ?? await readWantedLockfile(lockfileDir, {
     ignoreIncompatible: false,
     useGitBranchLockfile: opts.useGitBranchLockfile,
+    branchLockfileDir: opts.branchLockfileDir,
     // mergeGitBranchLockfiles is intentionally not supported in headless
     mergeGitBranchLockfiles: false,
   })

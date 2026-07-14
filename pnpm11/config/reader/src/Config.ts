@@ -224,6 +224,8 @@ export interface Config extends OptionsFromRootManifest {
   useGitBranchLockfile: boolean
   mergeGitBranchLockfiles?: boolean
   mergeGitBranchLockfilesBranchPattern?: string[]
+  /** Directory (relative to `lockfileDir` unless absolute) for git-branch-named lockfiles. Defaults to `lockfileDir`. */
+  branchLockfileDir?: string
   globalPnpmfile?: string
   npmPath?: string
   gitChecks?: boolean

@@ -43,6 +43,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'lockfile-dir',
     'lockfile-only',
     'lockfile',
+    'branch-lockfile-dir',
     'merge-git-branch-lockfiles',
     'merge-git-branch-lockfiles-branch-pattern',
     'modules-dir',
@@ -186,6 +187,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Merge lockfiles were generated on git branch',
             name: '--merge-git-branch-lockfiles',
+          },
+          {
+            description: 'The directory in which git-branch-named lockfiles are created. Defaults to `lockfile-dir`',
+            name: '--branch-lockfile-dir <dir>',
           },
           {
             description: 'The directory in which dependencies will be installed (instead of node_modules)',
