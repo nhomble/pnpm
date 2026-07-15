@@ -13,6 +13,9 @@ use std::{path::PathBuf, sync::OnceLock};
 /// eagerly.
 pub struct LazyLockfile {
     dir: Option<PathBuf>,
+    branch_lockfile_dir: Option<PathBuf>,
+    use_git_branch_lockfile: bool,
+    merge_git_branch_lockfiles: bool,
     cell: OnceLock<Option<Lockfile>>,
 }
 
@@ -22,7 +25,32 @@ impl LazyLockfile {
     /// [`Self::get`].
     #[must_use]
     pub fn deferred(dir: PathBuf) -> Self {
-        LazyLockfile { dir: Some(dir), cell: OnceLock::new() }
+        LazyLockfile {
+            dir: Some(dir),
+            branch_lockfile_dir: None,
+            use_git_branch_lockfile: false,
+            merge_git_branch_lockfiles: false,
+            cell: OnceLock::new(),
+        }
+    }
+
+    /// A lockfile that honors `useGitBranchLockfile` /
+    /// `mergeGitBranchLockfiles` / `branchLockfileDir` on first
+    /// [`Self::get`], via [`Lockfile::load_wanted_with_git_branch_lockfile`].
+    #[must_use]
+    pub fn deferred_with_git_branch_lockfile(
+        dir: PathBuf,
+        branch_lockfile_dir: Option<PathBuf>,
+        use_git_branch_lockfile: bool,
+        merge_git_branch_lockfiles: bool,
+    ) -> Self {
+        LazyLockfile {
+            dir: Some(dir),
+            branch_lockfile_dir,
+            use_git_branch_lockfile,
+            merge_git_branch_lockfiles,
+            cell: OnceLock::new(),
+        }
     }
 
     /// A lockfile that is never loaded — [`Self::get`] yields `None`
@@ -30,7 +58,13 @@ impl LazyLockfile {
     /// config.
     #[must_use]
     pub fn disabled() -> Self {
-        LazyLockfile { dir: None, cell: OnceLock::new() }
+        LazyLockfile {
+            dir: None,
+            branch_lockfile_dir: None,
+            use_git_branch_lockfile: false,
+            merge_git_branch_lockfiles: false,
+            cell: OnceLock::new(),
+        }
     }
 
     /// A lockfile that is already in memory; [`Self::get`] returns it
@@ -39,7 +73,13 @@ impl LazyLockfile {
     pub fn preloaded(lockfile: Option<Lockfile>) -> Self {
         let cell = OnceLock::new();
         cell.set(lockfile).expect("a fresh OnceLock accepts the first set");
-        LazyLockfile { dir: None, cell }
+        LazyLockfile {
+            dir: None,
+            branch_lockfile_dir: None,
+            use_git_branch_lockfile: false,
+            merge_git_branch_lockfiles: false,
+            cell,
+        }
     }
 
     /// The parsed wanted lockfile, loading it on first call. `None`
@@ -51,7 +91,12 @@ impl LazyLockfile {
             return Ok(lockfile.as_ref());
         }
         let loaded = match self.dir.as_deref() {
-            Some(dir) => Lockfile::load_wanted_from_dir(dir)?,
+            Some(dir) => Lockfile::load_wanted_with_git_branch_lockfile(
+                dir,
+                self.branch_lockfile_dir.as_deref(),
+                self.use_git_branch_lockfile,
+                self.merge_git_branch_lockfiles,
+            )?,
             None => None,
         };
         Ok(self.cell.get_or_init(|| loaded).as_ref())

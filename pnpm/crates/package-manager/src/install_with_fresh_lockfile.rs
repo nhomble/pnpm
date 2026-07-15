@@ -2154,7 +2154,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         );
 
         let (wanted_lockfile, can_record_lockfile_verification) = if config.lockfile {
-            let target = lockfile_dir.join(Lockfile::FILE_NAME);
+            let target = pacquet_lockfile::wanted_lockfile_target(
+                lockfile_dir,
+                config.branch_lockfile_dir.as_deref(),
+                config.git_branch_lockfile,
+            )
+            .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
             let can_record_lockfile_verification = save_wanted_lockfile(
                 &built_lockfile,
                 &target,

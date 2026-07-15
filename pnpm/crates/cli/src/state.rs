@@ -66,11 +66,16 @@ impl State {
     ) -> Result<Self, InitStateError> {
         let should_load = config.lockfile || require_lockfile;
         let lockfile = if should_load {
-            manifest_path
+            let dir = manifest_path
                 .parent()
                 .expect("manifest path always has a parent dir")
-                .to_path_buf()
-                .pipe(LazyLockfile::deferred)
+                .to_path_buf();
+            LazyLockfile::deferred_with_git_branch_lockfile(
+                dir,
+                config.branch_lockfile_dir.clone(),
+                config.git_branch_lockfile,
+                config.merge_git_branch_lockfiles,
+            )
         } else {
             LazyLockfile::disabled()
         };

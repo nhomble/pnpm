@@ -9,7 +9,6 @@ type PnpmKey = keyof typeof pnpmTypes
  */
 export const pnpmConfigFileKeys = [
   'bail',
-  'branch-lockfile-dir',
   'ci',
   'color',
   'cache-dir',
@@ -128,6 +127,7 @@ export const excludedPnpmKeys = [
   'link-workspace-packages',
   'lockfile',
   'lockfile-dir',
+  'branch-lockfile-dir',
   'lockfile-include-tarball-url',
   'lockfile-only',
   'modules-dir',

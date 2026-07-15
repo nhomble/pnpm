@@ -7,7 +7,10 @@ use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[test]
 fn parses_common_settings_from_yaml() {
@@ -157,6 +160,38 @@ fn parses_git_checks_from_yaml_and_applies() {
     assert!(config.git_checks, "default is true");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert!(!config.git_checks);
+}
+
+/// `gitBranchLockfile` / `mergeGitBranchLockfiles` parse as plain
+/// booleans and `apply_to` pushes them onto the `Config`, matching
+/// pnpm's `git-branch-lockfile` / `merge-git-branch-lockfiles` settings.
+#[test]
+fn parses_git_branch_lockfile_settings_from_yaml_and_applies() {
+    let yaml = "gitBranchLockfile: true\nmergeGitBranchLockfiles: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.git_branch_lockfile, Some(true));
+    assert_eq!(settings.merge_git_branch_lockfiles, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.git_branch_lockfile, "default is false");
+    assert!(!config.merge_git_branch_lockfiles, "default is false");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.git_branch_lockfile);
+    assert!(config.merge_git_branch_lockfiles);
+}
+
+/// `branchLockfileDir` resolves against the workspace dir when relative,
+/// matching the other path-valued settings (`modulesDir`, `storeDir`, ...).
+#[test]
+fn parses_branch_lockfile_dir_from_yaml_and_resolves() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("branchLockfileDir: .pnpm/lockfiles\n").unwrap();
+    assert_eq!(settings.branch_lockfile_dir.as_deref(), Some(".pnpm/lockfiles"));
+
+    let mut config = Config::new();
+    assert_eq!(config.branch_lockfile_dir, None, "default is unset");
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    assert_eq!(config.branch_lockfile_dir, Some(PathBuf::from("/workspace/.pnpm/lockfiles")));
 }
 
 /// `networkConcurrency` / `fetchTimeout` / `userAgent` parse from

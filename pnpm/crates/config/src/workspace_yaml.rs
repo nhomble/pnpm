@@ -101,6 +101,20 @@ pub struct WorkspaceSettings {
     pub offline: Option<bool>,
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
+
+    /// `gitBranchLockfile` from `pnpm-workspace.yaml`. See
+    /// [`Config::git_branch_lockfile`]. Default `false`.
+    pub git_branch_lockfile: Option<bool>,
+
+    /// `mergeGitBranchLockfiles` from `pnpm-workspace.yaml`. See
+    /// [`Config::merge_git_branch_lockfiles`]. Default `false`.
+    pub merge_git_branch_lockfiles: Option<bool>,
+
+    /// `branchLockfileDir` from `pnpm-workspace.yaml`. Resolved against
+    /// the workspace dir like the other path-valued fields. See
+    /// [`Config::branch_lockfile_dir`].
+    pub branch_lockfile_dir: Option<String>,
+
     pub registry: Option<String>,
     pub registries: Option<BTreeMap<String, String>>,
     pub pnpr_server: Option<String>,
@@ -784,6 +798,7 @@ impl WorkspaceSettings {
             resolution_mode, catalog_mode, registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
+            git_branch_lockfile, merge_git_branch_lockfiles,
         }
 
         if let Some(inner) = self.hoist_pattern {
@@ -808,6 +823,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.global_virtual_store_dir {
             config.global_virtual_store_dir = resolve(base_dir, &v);
+        }
+        if let Some(v) = self.branch_lockfile_dir {
+            config.branch_lockfile_dir = Some(resolve(base_dir, &v));
         }
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));

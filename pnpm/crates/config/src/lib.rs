@@ -790,6 +790,26 @@ pub struct Config {
     /// Add the full URL to the package's tarball to every entry in pnpm-lock.yaml.
     pub lockfile_include_tarball_url: bool,
 
+    /// `useGitBranchLockfile` (`git-branch-lockfile` in `pnpm-workspace.yaml`).
+    /// When `true`, the wanted lockfile file name becomes
+    /// `pnpm-lock.<branch>.yaml` instead of `pnpm-lock.yaml`, where
+    /// `<branch>` is the sanitized current git branch name. Default `false`.
+    pub git_branch_lockfile: bool,
+
+    /// `mergeGitBranchLockfiles`. When `true`, every git-branch-named
+    /// lockfile found in [`Config::branch_lockfile_dir`] (or the main
+    /// lockfile directory when unset) is merged into the wanted lockfile
+    /// on read, and the branch lockfiles are deleted after a successful
+    /// install. Default `false`.
+    pub merge_git_branch_lockfiles: bool,
+
+    /// `branchLockfileDir`. Directory git-branch-named lockfiles are
+    /// read from, written to, and cleaned up in. Relative paths resolve
+    /// against the `pnpm-workspace.yaml` directory. `None` (the default)
+    /// keeps them next to the main lockfile, matching pnpm's behavior
+    /// before this setting existed.
+    pub branch_lockfile_dir: Option<PathBuf>,
+
     /// The base URL of the npm package registry (trailing slash included).
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)

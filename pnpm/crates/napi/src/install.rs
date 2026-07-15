@@ -284,7 +284,12 @@ fn run_install_inner(
         .with_max_sockets_per_host(config.max_sockets),
     );
     let lazy_lockfile = if config.lockfile {
-        LazyLockfile::deferred(dir.clone())
+        LazyLockfile::deferred_with_git_branch_lockfile(
+            dir.clone(),
+            config.branch_lockfile_dir.clone(),
+            config.git_branch_lockfile,
+            config.merge_git_branch_lockfiles,
+        )
     } else {
         LazyLockfile::disabled()
     };

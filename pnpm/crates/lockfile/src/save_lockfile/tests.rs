@@ -1,6 +1,7 @@
 use super::SaveLockfileError;
 use crate::Lockfile;
 use pretty_assertions::assert_eq;
+use std::{path::Path, process::Command};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -294,6 +295,56 @@ fn save_fails_with_wrapped_io_error_when_path_is_invalid() {
         matches!(err, SaveLockfileError::WriteFile(_)),
         "expected SaveLockfileError::WriteFile(_), got: {err:?}",
     );
+}
+
+fn git(dir: &Path, args: &[&str]) {
+    let status = Command::new("git").args(args).current_dir(dir).status().unwrap();
+    assert!(status.success(), "git {args:?} failed in {dir:?}");
+}
+
+fn init_repo_on_branch(dir: &Path, branch: &str) {
+    git(dir, &["init", "--initial-branch", branch, "-q"]);
+    git(dir, &["config", "user.email", "test@example.com"]);
+    git(dir, &["config", "user.name", "Test"]);
+}
+
+/// `useGitBranchLockfile` writes `pnpm-lock.<branch>.yaml` into
+/// `branch_lockfile_dir`, creating it if needed, instead of the plain
+/// `pnpm-lock.yaml` in `dir`.
+#[test]
+fn writes_the_git_branch_lockfile_into_branch_lockfile_dir() {
+    let lockfile: Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse minimal lockfile");
+
+    let tmp = tempdir().expect("create tempdir");
+    init_repo_on_branch(tmp.path(), "feature");
+    let branch_dir = tmp.path().join(".pnpm").join("lockfiles");
+
+    lockfile
+        .save_wanted_with_git_branch_lockfile(tmp.path(), Some(&branch_dir), true)
+        .expect("save should not error");
+
+    assert!(!tmp.path().join(Lockfile::FILE_NAME).exists());
+    assert!(branch_dir.join("pnpm-lock.feature.yaml").exists());
+}
+
+/// Without `useGitBranchLockfile`, the plain `pnpm-lock.yaml` in `dir` is
+/// written regardless of `branch_lockfile_dir`.
+#[test]
+fn writes_the_plain_lockfile_when_git_branch_lockfile_is_disabled() {
+    let lockfile: Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse minimal lockfile");
+
+    let tmp = tempdir().expect("create tempdir");
+    init_repo_on_branch(tmp.path(), "feature");
+    let branch_dir = tmp.path().join(".pnpm").join("lockfiles");
+
+    lockfile
+        .save_wanted_with_git_branch_lockfile(tmp.path(), Some(&branch_dir), false)
+        .expect("save should not error");
+
+    assert!(tmp.path().join(Lockfile::FILE_NAME).exists());
+    assert!(!branch_dir.exists());
 }
 
 #[test]

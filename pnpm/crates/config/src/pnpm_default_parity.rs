@@ -74,7 +74,6 @@ const NOT_PORTED: &[&str] = &[
     "fail-if-no-match",
     "fetch-min-speed-ki-bps",
     "fetch-warn-timeout-ms",
-    "git-branch-lockfile",
     "ignore-workspace-cycles",
     "ignore-workspace-root-check",
     "init-package-manager",
@@ -170,6 +169,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
             Scalar::Set(cfg.public_hoist_pattern.clone().unwrap_or_default().into_iter().collect()),
         ),
         ("git-shallow-hosts", Scalar::Set(cfg.git_shallow_hosts.iter().cloned().collect())),
+        ("git-branch-lockfile", Bool(cfg.git_branch_lockfile)),
     ]
 }
 

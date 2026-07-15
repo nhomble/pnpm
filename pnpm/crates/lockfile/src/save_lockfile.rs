@@ -1,5 +1,5 @@
 use crate::{
-    Lockfile, serialize_yaml,
+    Lockfile, current_branch, git_branch_lockfile_name, serialize_yaml,
     yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, extract_env_document},
 };
 use derive_more::{Display, Error};
@@ -88,6 +88,37 @@ pub fn save_value_to_path<Document: serde::Serialize>(
     fs::write(path, output).map_err(SaveLockfileError::WriteFile)
 }
 
+/// Resolves the path a wanted-lockfile write should target, honoring
+/// `useGitBranchLockfile`: mirrors pnpm's `writeWantedLockfile`
+/// (`lockfile/fs/src/write.ts`).
+///
+/// When `use_git_branch_lockfile` is set and the current git branch
+/// (read from `dir`) resolves to a name, the target is
+/// `pnpm-lock.<branch>.yaml` in `branch_lockfile_dir` (or `dir`, when
+/// unset) — `branch_lockfile_dir` is created if it doesn't exist yet.
+/// Otherwise the target is the plain `<dir>/pnpm-lock.yaml`.
+///
+/// Exposed separately from [`Lockfile::save_wanted_with_git_branch_lockfile`]
+/// for callers (like the `afterAllResolved` pnpmfile hook path) that pick
+/// between two different writers for the same target path.
+pub fn wanted_lockfile_target(
+    dir: &Path,
+    branch_lockfile_dir: Option<&Path>,
+    use_git_branch_lockfile: bool,
+) -> Result<PathBuf, SaveLockfileError> {
+    if use_git_branch_lockfile && let Some(branch) = current_branch(dir) {
+        let target_dir = branch_lockfile_dir.unwrap_or(dir);
+        if branch_lockfile_dir.is_some() {
+            fs::create_dir_all(target_dir).map_err(|error| SaveLockfileError::CreateDir {
+                dir: target_dir.to_path_buf(),
+                error,
+            })?;
+        }
+        return Ok(target_dir.join(git_branch_lockfile_name(&branch)));
+    }
+    Ok(dir.join(Lockfile::FILE_NAME))
+}
+
 impl Lockfile {
     /// Render lockfile as pnpm-formatted YAML.
     pub fn to_yaml_string(&self) -> Result<String, SaveLockfileError> {
@@ -104,6 +135,20 @@ impl Lockfile {
         let file_path =
             env::current_dir().map_err(SaveLockfileError::CurrentDir)?.join(Lockfile::FILE_NAME);
         self.save_to_path(&file_path)
+    }
+
+    /// Save the wanted lockfile the way `useGitBranchLockfile` expects
+    /// it: mirrors pnpm's `writeWantedLockfile` (`lockfile/fs/src/write.ts`).
+    ///
+    /// See [`wanted_lockfile_target`] for how the target path is chosen.
+    pub fn save_wanted_with_git_branch_lockfile(
+        &self,
+        dir: &Path,
+        branch_lockfile_dir: Option<&Path>,
+        use_git_branch_lockfile: bool,
+    ) -> Result<(), SaveLockfileError> {
+        let target = wanted_lockfile_target(dir, branch_lockfile_dir, use_git_branch_lockfile)?;
+        self.save_to_path(&target)
     }
 
     /// Save the *current* lockfile under

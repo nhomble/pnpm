@@ -372,6 +372,14 @@ pub enum InstallError {
     #[display("Failed to remove modules directory contents: {_0}")]
     RemoveModulesDir(#[error(source)] std::io::Error),
 
+    /// Surfaces a failure to delete git-branch-named lockfiles after a
+    /// successful install with `mergeGitBranchLockfiles` set. Mirrors
+    /// pnpm's unguarded `cleanGitBranchLockfiles` call — a cleanup
+    /// failure fails the install rather than being swallowed.
+    #[diagnostic(code(pacquet_package_manager::clean_git_branch_lockfiles))]
+    #[display("Failed to clean up git-branch-named lockfiles: {_0}")]
+    CleanGitBranchLockfiles(#[error(source)] std::io::Error),
+
     /// Surfaces a failure while removing the direct-dep links an
     /// `included` drift excluded — the non-destructive counterpart of
     /// the purge. See [`crate::prune_direct_deps_excluded_by_groups`].
@@ -490,20 +498,53 @@ pub enum InstallError {
     ConfigConflictFrozenStoreWithForce,
 }
 
+/// Deletes every git-branch-named lockfile in `cleanup_dir`, when set.
+/// Split out from the `Install::run*` wrappers so each one can call it
+/// after `run_inner` without duplicating the `Option` check.
+fn clean_git_branch_lockfiles_after_install(
+    cleanup_dir: Option<PathBuf>,
+) -> Result<(), InstallError> {
+    let Some(dir) = cleanup_dir else { return Ok(()) };
+    pacquet_lockfile::clean_git_branch_lockfiles(&dir)
+        .map_err(InstallError::CleanGitBranchLockfiles)
+}
+
 impl<'a, DependencyGroupList> Install<'a, DependencyGroupList>
 where
     DependencyGroupList: IntoIterator<Item = DependencyGroup>,
 {
+    /// Directory to clean git-branch-named lockfiles from after a
+    /// successful install, when `mergeGitBranchLockfiles` is set;
+    /// `None` when the setting is off. Mirrors pnpm's post-install
+    /// `cleanGitBranchLockfiles` call
+    /// (`installing/deps-installer/src/install/index.ts`) — including
+    /// running unconditionally rather than being skipped for
+    /// `--dry-run`, matching upstream's own (unguarded) placement.
+    fn git_branch_lockfile_cleanup_dir(&self) -> Option<PathBuf> {
+        if !self.config.merge_git_branch_lockfiles {
+            return None;
+        }
+        let manifest_dir = self.manifest.path().parent()?;
+        let workspace_dir =
+            configured_or_discovered_workspace_dir(self.config, manifest_dir).ok()?;
+        let workspace_root = workspace_dir.unwrap_or_else(|| manifest_dir.to_path_buf());
+        Some(self.config.branch_lockfile_dir.clone().unwrap_or(workspace_root))
+    }
+
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(None, None).await
+        let cleanup_dir = self.git_branch_lockfile_cleanup_dir();
+        Box::pin(self.run_inner::<Reporter>(None, None)).await?;
+        clean_git_branch_lockfiles_after_install(cleanup_dir)
     }
 
     pub async fn run_with_lockfile_verification<Reporter: self::Reporter + 'static>(
         self,
         lockfile_verification_override: LockfileVerificationOverride<'a>,
     ) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(Some(lockfile_verification_override), None).await
+        let cleanup_dir = self.git_branch_lockfile_cleanup_dir();
+        Box::pin(self.run_inner::<Reporter>(Some(lockfile_verification_override), None)).await?;
+        clean_git_branch_lockfiles_after_install(cleanup_dir)
     }
 
     /// Execute as a forced rebuild: take the frozen path against the
@@ -523,7 +564,9 @@ where
         rebuild: RebuildOptions,
     ) -> Result<(), InstallError> {
         assert!(self.frozen_lockfile, "run_rebuild requires frozen_lockfile = true");
-        self.run_inner::<Reporter>(None, Some(rebuild)).await
+        let cleanup_dir = self.git_branch_lockfile_cleanup_dir();
+        Box::pin(self.run_inner::<Reporter>(None, Some(rebuild))).await?;
+        clean_git_branch_lockfiles_after_install(cleanup_dir)
     }
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
@@ -1041,7 +1084,11 @@ where
             }
             if config.lockfile {
                 lockfile
-                    .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
+                    .save_wanted_with_git_branch_lockfile(
+                        &workspace_root,
+                        config.branch_lockfile_dir.as_deref(),
+                        config.git_branch_lockfile,
+                    )
                     .map_err(InstallError::SaveWantedLockfile)?;
             }
             Reporter::emit(&LogEvent::Stage(StageLog {
@@ -1254,7 +1301,11 @@ where
             }));
             if lockfile_synthesized_from_current && config.lockfile {
                 wanted_lockfile
-                    .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
+                    .save_wanted_with_git_branch_lockfile(
+                        &workspace_root,
+                        config.branch_lockfile_dir.as_deref(),
+                        config.git_branch_lockfile,
+                    )
                     .map_err(InstallError::SaveWantedLockfile)?;
             }
             update_workspace_state(
@@ -1691,7 +1742,11 @@ where
             && let Some(synthesized) = synthesized_lockfile.as_ref()
         {
             synthesized
-                .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
+                .save_wanted_with_git_branch_lockfile(
+                    &workspace_root,
+                    config.branch_lockfile_dir.as_deref(),
+                    config.git_branch_lockfile,
+                )
                 .map_err(InstallError::SaveWantedLockfile)?;
         }
 
@@ -2325,7 +2380,12 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
     // directory), so the pre-runtime check and the in-pipeline check
     // reach their verdicts from the same file.
     let lockfile = if config.lockfile {
-        LazyLockfile::deferred(manifest_dir.to_path_buf())
+        LazyLockfile::deferred_with_git_branch_lockfile(
+            manifest_dir.to_path_buf(),
+            config.branch_lockfile_dir.clone(),
+            config.git_branch_lockfile,
+            config.merge_git_branch_lockfiles,
+        )
     } else {
         LazyLockfile::disabled()
     };
@@ -2435,7 +2495,12 @@ pub fn check_deps_status_before_run_at(
         workspace_projects.as_deref(),
     );
     let lockfile = if config.lockfile {
-        LazyLockfile::deferred(workspace_root.clone())
+        LazyLockfile::deferred_with_git_branch_lockfile(
+            workspace_root.clone(),
+            config.branch_lockfile_dir.clone(),
+            config.git_branch_lockfile,
+            config.merge_git_branch_lockfiles,
+        )
     } else {
         LazyLockfile::disabled()
     };

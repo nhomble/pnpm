@@ -3,6 +3,7 @@ use crate::{
     SnapshotDepRef,
 };
 use pretty_assertions::assert_eq;
+use std::{path::Path, process::Command};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -262,4 +263,108 @@ fn parses_link_dep_in_injected_snapshot() {
     let c_ref = deps.get(&c_name).expect("c entry present");
     assert_eq!(c_ref, &SnapshotDepRef::Link("packages/c".to_string()));
     assert_eq!(c_ref.resolve(&c_name), None);
+}
+
+fn lockfile_with_dep(name: &str, version: &str) -> String {
+    format!(
+        "\
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      {name}:
+        specifier: ^{version}
+        version: {version}
+
+packages:
+
+  {name}@{version}:
+    resolution: {{integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}}
+
+snapshots:
+
+  {name}@{version}: {{}}
+",
+    )
+}
+
+fn git(dir: &Path, args: &[&str]) {
+    let status = Command::new("git").args(args).current_dir(dir).status().unwrap();
+    assert!(status.success(), "git {args:?} failed in {dir:?}");
+}
+
+fn init_repo_on_branch(dir: &Path, branch: &str) {
+    git(dir, &["init", "--initial-branch", branch, "-q"]);
+    git(dir, &["config", "user.email", "test@example.com"]);
+    git(dir, &["config", "user.name", "Test"]);
+}
+
+/// Without `useGitBranchLockfile`, the loader always reads the plain
+/// `pnpm-lock.yaml`, matching pnpm's default behavior.
+#[test]
+fn falls_back_to_the_plain_lockfile_when_no_branch_lockfile_exists() {
+    let tmp = tempdir().expect("create tempdir");
+    init_repo_on_branch(tmp.path(), "feature");
+    std::fs::write(tmp.path().join(Lockfile::FILE_NAME), lockfile_with_dep("is-positive", "1.0.0"))
+        .expect("write pnpm-lock.yaml");
+
+    let lockfile = Lockfile::load_wanted_with_git_branch_lockfile(tmp.path(), None, true, false)
+        .expect("load should not error")
+        .expect("lockfile should be present");
+    let deps = lockfile.root_project().unwrap().dependencies.as_ref().unwrap();
+    assert!(deps.contains_key(&PkgName::parse("is-positive").unwrap()));
+}
+
+/// A branch lockfile in a separate `branch_lockfile_dir` is preferred
+/// over the plain `pnpm-lock.yaml` when `useGitBranchLockfile` is set.
+#[test]
+fn prefers_the_branch_lockfile_from_branch_lockfile_dir() {
+    let tmp = tempdir().expect("create tempdir");
+    init_repo_on_branch(tmp.path(), "feature");
+    let branch_dir = tmp.path().join(".pnpm").join("lockfiles");
+    std::fs::create_dir_all(&branch_dir).expect("mkdir branch dir");
+
+    std::fs::write(tmp.path().join(Lockfile::FILE_NAME), lockfile_with_dep("is-positive", "1.0.0"))
+        .expect("write pnpm-lock.yaml");
+    std::fs::write(
+        branch_dir.join("pnpm-lock.feature.yaml"),
+        lockfile_with_dep("is-negative", "2.0.0"),
+    )
+    .expect("write branch lockfile");
+
+    let lockfile =
+        Lockfile::load_wanted_with_git_branch_lockfile(tmp.path(), Some(&branch_dir), true, false)
+            .expect("load should not error")
+            .expect("lockfile should be present");
+    let deps = lockfile.root_project().unwrap().dependencies.as_ref().unwrap();
+    assert!(deps.contains_key(&PkgName::parse("is-negative").unwrap()));
+    assert!(!deps.contains_key(&PkgName::parse("is-positive").unwrap()));
+}
+
+/// `mergeGitBranchLockfiles` folds the branch lockfile's dependencies
+/// into the loaded wanted lockfile.
+#[test]
+fn merges_branch_lockfiles_when_merge_git_branch_lockfiles_is_set() {
+    let tmp = tempdir().expect("create tempdir");
+    init_repo_on_branch(tmp.path(), "main");
+    let branch_dir = tmp.path().join(".pnpm").join("lockfiles");
+    std::fs::create_dir_all(&branch_dir).expect("mkdir branch dir");
+
+    std::fs::write(tmp.path().join(Lockfile::FILE_NAME), lockfile_with_dep("is-positive", "1.0.0"))
+        .expect("write pnpm-lock.yaml");
+    std::fs::write(
+        branch_dir.join("pnpm-lock.feature.yaml"),
+        lockfile_with_dep("is-negative", "2.0.0"),
+    )
+    .expect("write branch lockfile");
+
+    let lockfile =
+        Lockfile::load_wanted_with_git_branch_lockfile(tmp.path(), Some(&branch_dir), false, true)
+            .expect("load should not error")
+            .expect("lockfile should be present");
+    let deps = lockfile.root_project().unwrap().dependencies.as_ref().unwrap();
+    assert!(deps.contains_key(&PkgName::parse("is-positive").unwrap()));
+    assert!(deps.contains_key(&PkgName::parse("is-negative").unwrap()));
 }
