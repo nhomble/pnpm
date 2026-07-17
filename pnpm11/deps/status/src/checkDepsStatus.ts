@@ -6,7 +6,7 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
-import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
+import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -102,6 +102,7 @@ export type CheckDepsStatusOptions = Pick<Config,
    * state — the current-lockfile stand-in must not kick in.
    */
   useGitBranchLockfile?: boolean
+  branchLockfileDir?: string
 } & WorkspaceStateSettings
 
 export interface CheckDepsStatusResult {
@@ -412,6 +413,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         const wantedLockfilePromise = readWantedLockfile(workspaceDir, {
           ignoreIncompatible: false,
           useGitBranchLockfile: opts.useGitBranchLockfile,
+          branchLockfileDir: opts.branchLockfileDir,
           mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
         })
         if (modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
@@ -429,9 +431,11 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
         const wantedLockfilePromise = readWantedLockfile(wantedLockfileDir, {
           ignoreIncompatible: false,
           useGitBranchLockfile: opts.useGitBranchLockfile,
+          branchLockfileDir: opts.branchLockfileDir,
           mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
         })
-        const wantedLockfileStats = await safeStat(path.join(wantedLockfileDir, wantedLockfileName))
+        const wantedLockfileStatDir = wantedLockfileName !== WANTED_LOCKFILE && opts.branchLockfileDir ? opts.branchLockfileDir : wantedLockfileDir
+        const wantedLockfileStats = await safeStat(path.join(wantedLockfileStatDir, wantedLockfileName))
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
         if (modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
@@ -521,15 +525,17 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, {
       ignoreIncompatible: false,
       useGitBranchLockfile: opts.useGitBranchLockfile,
+      branchLockfileDir: opts.branchLockfileDir,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
     })
+    const wantedLockfileStatDir = wantedLockfileName !== WANTED_LOCKFILE && opts.branchLockfileDir ? opts.branchLockfileDir : rootProjectManifestDir
     const [
       currentLockfileStats,
       wantedLockfileStats,
       manifestStats,
     ] = await Promise.all([
       safeStat(path.join(internalPnpmDir, 'lock.yaml')),
-      safeStat(path.join(rootProjectManifestDir, wantedLockfileName)),
+      safeStat(path.join(wantedLockfileStatDir, wantedLockfileName)),
       statManifestFile(rootProjectManifestDir),
     ])
 

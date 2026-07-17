@@ -105,6 +105,7 @@ export interface GetContextOptions {
   storeDir: string
   useLockfile: boolean
   useGitBranchLockfile?: boolean
+  branchLockfileDir?: string
   mergeGitBranchLockfiles?: boolean
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
@@ -192,6 +193,7 @@ export async function getContext (
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,
+      branchLockfileDir: opts.branchLockfileDir,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
       internalPnpmDir,
     }),
@@ -260,6 +262,7 @@ export async function getContextForSingleImporter (
     storeDir: string
     useLockfile: boolean
     useGitBranchLockfile?: boolean
+    branchLockfileDir?: string
     mergeGitBranchLockfiles?: boolean
     virtualStoreDir?: string
     virtualStoreDirMaxLength: number
@@ -354,6 +357,7 @@ export async function getContextForSingleImporter (
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,
+      branchLockfileDir: opts.branchLockfileDir,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
       internalPnpmDir,
     }),

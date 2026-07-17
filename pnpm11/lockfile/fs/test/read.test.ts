@@ -312,6 +312,79 @@ test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles
   })
 })
 
+test('readWantedLockfile() when useGitBranchLockfile and branchLockfileDir', async () => {
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('branch'))
+  const projectPath = temporaryDirectory()
+  const branchLockfileDir = path.join(projectPath, '.pnpm', 'lockfiles')
+
+  const mainLockfile = {
+    importers: {
+      '.': {
+        dependencies: { 'is-positive': '1.0.0' },
+        specifiers: { 'is-positive': '1.0.0' },
+      },
+    },
+    lockfileVersion: '9.0',
+    packages: {
+      'is-positive@1.0.0': {
+        resolution: { integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=' },
+      },
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
+  const branchLockfile = {
+    importers: {
+      '.': {
+        dependencies: { 'is-positive': '2.0.0' },
+        specifiers: { 'is-positive': '2.0.0' },
+      },
+    },
+    lockfileVersion: '9.0',
+    packages: {
+      'is-positive@2.0.0': {
+        resolution: { integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=' },
+      },
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
+
+  await writeWantedLockfile(projectPath, mainLockfile)
+  await writeWantedLockfile(projectPath, branchLockfile, {
+    useGitBranchLockfile: true,
+    branchLockfileDir,
+  })
+
+  // The branch lockfile isn't next to the main one — reading without
+  // branchLockfileDir falls back to the main lockfile.
+  const withoutBranchDir = await readWantedLockfile(projectPath, {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: true,
+  })
+  expect(withoutBranchDir?.importers['.' as ProjectId].dependencies).toEqual({ 'is-positive': '1.0.0' })
+
+  const withBranchDir = await readWantedLockfile(projectPath, {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: true,
+    branchLockfileDir,
+  })
+  expect(withBranchDir?.importers['.' as ProjectId].dependencies).toEqual({ 'is-positive': '2.0.0' })
+
+  const merged = await readWantedLockfile(projectPath, {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+    branchLockfileDir,
+  })
+  expect(merged?.packages).toStrictEqual({
+    'is-positive@1.0.0': {
+      resolution: { integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=' },
+    },
+    'is-positive@2.0.0': {
+      resolution: { integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=' },
+    },
+  })
+})
+
 test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
   const wantedLockfile = {
     importers: {

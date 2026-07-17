@@ -7,6 +7,7 @@ import { npmConfigTypes } from './npmConfigTypes.js'
 export const pnpmTypes = {
   'auto-install-peers': Boolean,
   bail: Boolean,
+  'branch-lockfile-dir': String,
   ci: Boolean,
   'cache-dir': String,
   'catalog-mode': ['strict', 'prefer', 'manual'],

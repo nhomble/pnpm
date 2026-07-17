@@ -48,6 +48,7 @@ export interface StrictInstallOptions {
   saveLockfile: boolean
   useGitBranchLockfile: boolean
   mergeGitBranchLockfiles: boolean
+  branchLockfileDir?: string
   linkWorkspacePackagesDepth: number
   lockfileOnly: boolean
   forceFullResolution: boolean

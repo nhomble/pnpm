@@ -308,6 +308,72 @@ test('writeLockfiles() when useGitBranchLockfile', async () => {
   expect(fs.existsSync(path.join(projectPath, `pnpm-lock.${branchName}.yaml`))).toBeTruthy()
 })
 
+test('writeLockfiles() writes the git-branch-named lockfile into branchLockfileDir when set', async () => {
+  const branchName: string = 'branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+  const projectPath = temporaryDirectory()
+  const branchLockfileDir = path.join(projectPath, '.pnpm', 'lockfiles')
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/foo@1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }
+
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+    useGitBranchLockfile: true,
+    branchLockfileDir,
+  })
+  expect(fs.existsSync(path.join(projectPath, `pnpm-lock.${branchName}.yaml`))).toBeFalsy()
+  expect(fs.existsSync(path.join(branchLockfileDir, `pnpm-lock.${branchName}.yaml`))).toBeTruthy()
+})
+
+test('writeWantedLockfile() writes the git-branch-named lockfile into branchLockfileDir when set', async () => {
+  const branchName: string = 'branch'
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+  const projectPath = temporaryDirectory()
+  const branchLockfileDir = path.join(projectPath, '.pnpm', 'lockfiles')
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: { foo: '1.0.0' },
+        specifiers: { foo: '^1.0.0' },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/foo@1.0.0': {
+        resolution: { integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=' },
+      },
+    },
+  }
+
+  await writeWantedLockfile(projectPath, wantedLockfile, {
+    useGitBranchLockfile: true,
+    branchLockfileDir,
+  })
+  expect(fs.existsSync(path.join(projectPath, `pnpm-lock.${branchName}.yaml`))).toBeFalsy()
+  expect(fs.existsSync(path.join(branchLockfileDir, `pnpm-lock.${branchName}.yaml`))).toBeTruthy()
+})
+
 test('writeLockfiles() preserves env document prefix in pnpm-lock.yaml', async () => {
   const projectPath = temporaryDirectory()
   const envDoc = '---\nlockfileVersion: env-1.0\nimporters:\n  .:\n    configDependencies:\n      typescript: 5.0.0\n\n---\n'

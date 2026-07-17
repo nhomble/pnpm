@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { getWantedLockfileName, type LockfileObject, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
@@ -11,6 +12,7 @@ export interface WriteWantedLockfileAndRecordVerifiedOptions {
   cacheDir?: string
   resolutionVerifiers: readonly ResolutionVerifier[] | undefined
   useGitBranchLockfile?: boolean
+  branchLockfileDir?: string
   mergeGitBranchLockfiles?: boolean
 }
 
@@ -28,12 +30,14 @@ export async function writeWantedLockfileAndRecordVerified (
   const written = await writeWantedLockfile(opts.lockfileDir, opts.lockfile, {
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+    branchLockfileDir: opts.branchLockfileDir,
     lockfileName,
   })
   if (cacheActive) {
+    const writtenLockfileDir = lockfileName !== WANTED_LOCKFILE && opts.branchLockfileDir ? opts.branchLockfileDir : opts.lockfileDir
     recordLockfileVerified({
       cacheDir: opts.cacheDir,
-      lockfilePath: path.resolve(opts.lockfileDir, lockfileName!),
+      lockfilePath: path.resolve(writtenLockfileDir, lockfileName!),
       lockfile: written,
       resolutionVerifiers: opts.resolutionVerifiers,
     })

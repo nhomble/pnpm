@@ -41,6 +41,7 @@ export async function readWantedLockfileAndAutofixConflicts (
     ignoreIncompatible: boolean
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
+    branchLockfileDir?: string
   }
 ): Promise<{
   lockfile: LockfileObject | null
@@ -59,6 +60,7 @@ export async function readWantedLockfile (
     ignoreIncompatible: boolean
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
+    branchLockfileDir?: string
   }
 ): Promise<LockfileObject | null> {
   return (await _readWantedLockfile(pkgPath, opts)).lockfile
@@ -79,6 +81,7 @@ export async function readWantedLockfileFile (
     ignoreIncompatible: boolean
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
+    branchLockfileDir?: string
   }
 ): Promise<LockfileFile | null> {
   return (await _readWantedLockfile(pkgPath, opts)).lockfileFile
@@ -244,6 +247,7 @@ async function _readWantedLockfile (
     ignoreIncompatible: boolean
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
+    branchLockfileDir?: string
     autofixMergeConflicts?: boolean
   }
 ): Promise<{
@@ -251,17 +255,17 @@ async function _readWantedLockfile (
   lockfileFile: LockfileFile | null
   hadConflicts: boolean
 }> {
-  const lockfileNames: string[] = [WANTED_LOCKFILE]
+  const lockfileNames: Array<{ name: string, dir: string }> = [{ name: WANTED_LOCKFILE, dir: pkgPath }]
   if (opts.useGitBranchLockfile) {
     const gitBranchLockfileName: string = await getWantedLockfileName(opts)
     if (gitBranchLockfileName !== WANTED_LOCKFILE) {
-      lockfileNames.unshift(gitBranchLockfileName)
+      lockfileNames.unshift({ name: gitBranchLockfileName, dir: opts.branchLockfileDir ?? pkgPath })
     }
   }
   let result: { lockfile: LockfileObject | null, lockfileFile: LockfileFile | null, hadConflicts: boolean } = { lockfile: null, lockfileFile: null, hadConflicts: false }
   /* eslint-disable no-await-in-loop */
-  for (const lockfileName of lockfileNames) {
-    result = await _read(path.join(pkgPath, lockfileName), pkgPath, { ...opts, autofixMergeConflicts: true })
+  for (const { name, dir } of lockfileNames) {
+    result = await _read(path.join(dir, name), pkgPath, { ...opts, autofixMergeConflicts: true })
     if (result.lockfile) {
       if (opts.mergeGitBranchLockfiles) {
         result.lockfile = await _mergeGitBranchLockfiles(result.lockfile, pkgPath, pkgPath, opts)
@@ -282,12 +286,13 @@ async function _mergeGitBranchLockfiles (
     autofixMergeConflicts?: boolean
     wantedVersions?: string[]
     ignoreIncompatible: boolean
+    branchLockfileDir?: string
   }
 ): Promise<LockfileObject | null> {
   if (!lockfile) {
     return lockfile
   }
-  const gitBranchLockfiles: Array<(LockfileObject | null)> = (await _readGitBranchLockfiles(lockfileDir, prefix, opts)).map(({ lockfile }) => lockfile)
+  const gitBranchLockfiles: Array<(LockfileObject | null)> = (await _readGitBranchLockfiles(opts.branchLockfileDir ?? lockfileDir, prefix, opts)).map(({ lockfile }) => lockfile)
 
   let mergedLockfile: LockfileObject = lockfile
 

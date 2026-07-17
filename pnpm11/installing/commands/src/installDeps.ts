@@ -177,7 +177,7 @@ export type InstallDepsOptions = Pick<Config,
    * subcommand — see `runPacquet.ts`'s `noRuntime` opt.
    */
   isInstallCommand?: boolean
-} & Partial<Pick<Config, 'dryRun' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>>
+} & Partial<Pick<Config, 'dryRun' | 'pnpmHomeDir' | 'strictDepBuilds' | 'useLockfile' | 'useGitBranchLockfile' | 'branchLockfileDir' | 'mergeGitBranchLockfiles'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
